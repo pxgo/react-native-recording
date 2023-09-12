@@ -12,6 +12,8 @@ import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 
+import sun.tools.jps.Arguments;
+
 class RecordingModule extends ReactContextBaseJavaModule {
     private static AudioRecord audioRecord;
     private final ReactApplicationContext reactContext;
@@ -19,6 +21,10 @@ class RecordingModule extends ReactContextBaseJavaModule {
     private boolean running;
     private int bufferSize;
     private Thread recordingThread;
+
+    private int fftBufferSize;
+    private boolean isFFT;
+
 
     RecordingModule(ReactApplicationContext reactContext) {
         super(reactContext);
@@ -79,6 +85,11 @@ class RecordingModule extends ReactContextBaseJavaModule {
             this.bufferSize = 8192;
         }
 
+        if(options.hasKey("fftBufferSize")) {
+            this.fftBufferSize = options.getInt("fftBufferSize");
+            this.isFFT = true;
+        }
+
         audioRecord = new AudioRecord(
                 MediaRecorder.AudioSource.MIC,
                 sampleRateInHz,
@@ -114,13 +125,16 @@ class RecordingModule extends ReactContextBaseJavaModule {
 
     private void recording() {
         short buffer[] = new short[bufferSize];
+        WritableArray fftBuffer = Arguments.createArray();
         while (running && !reactContext.getCatalystInstance().isDestroyed()) {
             WritableArray data = Arguments.createArray();
             audioRecord.read(buffer, 0, bufferSize);
             for (float value : buffer) {
+                fftBuffer.pushInt((int) value);
                 data.pushInt((int) value);
             }
             eventEmitter.emit("recording", data);
+            eventEmitter.emit("recordingFFT", fftBuffer);
         }
     }
 }
