@@ -12,8 +12,6 @@ import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 
-import sun.tools.jps.Arguments;
-
 class RecordingModule extends ReactContextBaseJavaModule {
     private static AudioRecord audioRecord;
     private final ReactApplicationContext reactContext;
@@ -124,17 +122,22 @@ class RecordingModule extends ReactContextBaseJavaModule {
     }
 
     private void recording() {
+        FFTAPI fftAPI = new FFTAPI();
+        fftAPI.setFFTDataSize(this.fftBufferSize);
         short buffer[] = new short[bufferSize];
-        WritableArray fftBuffer = Arguments.createArray();
         while (running && !reactContext.getCatalystInstance().isDestroyed()) {
             WritableArray data = Arguments.createArray();
+            int[] dataInt = new int[bufferSize];
             audioRecord.read(buffer, 0, bufferSize);
-            for (float value : buffer) {
-                fftBuffer.pushInt((int) value);
+            for(int i = 0; i < bufferSize; i++) {
+                float value = buffer[i];
                 data.pushInt((int) value);
+                dataInt[i] = (int) value;
             }
             eventEmitter.emit("recording", data);
-            eventEmitter.emit("recordingFFT", fftBuffer);
+            fftAPI.insertFFTData(dataInt);
+            int[] fftData = fftAPI.getFFTData();
+            eventEmitter.emit("recordingFFT", fftData);
         }
     }
 }

@@ -9,5 +9,7 @@ declare const _default: {
     start: () => any;
     stop: () => any;
     addRecordingEventListener: (listener: (data: Float32Array) => void) => import("react-native").EmitterSubscription;
+    addRecordingFFTEventListener: (listener: (data: Float32Array) => void) => import("react-native").EmitterSubscription;
+
 };
 export default _default;
