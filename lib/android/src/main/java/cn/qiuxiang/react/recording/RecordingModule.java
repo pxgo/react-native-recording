@@ -12,6 +12,10 @@ import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 
+import org.apache.commons.math3.complex.Complex;
+import org.apache.commons.math3.transform.FastFourierTransformer;
+import org.apache.commons.math3.transform.TransformType;
+
 class RecordingModule extends ReactContextBaseJavaModule {
     private static AudioRecord audioRecord;
     private final ReactApplicationContext reactContext;
@@ -20,8 +24,9 @@ class RecordingModule extends ReactContextBaseJavaModule {
     private int bufferSize;
     private Thread recordingThread;
 
-    private int fftBufferSize;
-    private boolean isFFT = false;
+    private int fftDataSize;
+    int[] fftData;
+    int fftDataIndex;
 
 
     RecordingModule(ReactApplicationContext reactContext) {
@@ -84,8 +89,12 @@ class RecordingModule extends ReactContextBaseJavaModule {
         }
 
         if(options.hasKey("fftBufferSize")) {
-            this.fftBufferSize = options.getInt("fftBufferSize");
-            this.isFFT = this.fftBufferSize > 0;
+            this.fftDataSize = options.getInt("fftBufferSize");
+            this.fftData = new int[this.fftDataSize];
+            this.fftDataIndex = 0;
+        } else {
+            this.fftDataSize = 0;
+            this.fftDataIndex = 0;
         }
 
         audioRecord = new AudioRecord(
@@ -121,23 +130,82 @@ class RecordingModule extends ReactContextBaseJavaModule {
         }
     }
 
-    private void recording() {
-        FDAPI fd_api = new FDAPI();
-        TDAPI td_api = new TDAPI();
+    private WritableArray getTDData(short[] buffer) {
+        WritableArray data = Arguments.createArray();
+        for(int i = 0; i < buffer.length; i ++) {
+            float value = buffer[i];
+            data.pushInt((int) value);
+        }
+        return data;
+    }
 
-        if(this.isFFT) {
-            fd_api.setFFTDataSize(this.fftBufferSize);
+    private int getNewFFTDataIndex() {
+        if(this.fftDataIndex == this.fftDataSize - 1) {
+            this.fftDataIndex = 0;
+        } else {
+            this.fftDataIndex += 1;
+        }
+        return this.fftDataIndex;
+    }
+
+    private void insertFFTData(short[] buffer) {
+        int bufferLength = buffer.length;
+        for(int i = 0; i < bufferLength; i++) {
+            float value = buffer[i];
+            int newIndex = this.getNewFFTDataIndex();
+            this.fftData[newIndex] = (int) value;
+        }
+    }
+
+    private WritableArray getFDData(short[] buffer) {
+        this.insertFFTData(buffer);
+        WritableArray data = Arguments.createArray();
+        for(int i = 0; i < this.fftDataSize; i++) {
+            int targetIndex = this.fftDataIndex + 1 + i;
+            if(targetIndex >= this.fftDataSize) {
+                targetIndex = targetIndex - this.fftDataIndex;
+            }
+            data.pushInt(this.fftData[targetIndex]);
+        }
+        return this.calculateEnergy(data);
+    }
+
+    public static int[] calculateEnergy(int[] data) {
+        int length = data.length;
+        int halfLength = length / 2;
+        int[] energy = new int[halfLength];
+
+        // 将 int 数组转换为复数数组
+        Complex[] complexArray = new Complex[length];
+        for (int i = 0; i < length; i++) {
+            complexArray[i] = new Complex(data[i], 0);
         }
 
+        // 执行 FFT
+        FastFourierTransformer transformer = new FastFourierTransformer();
+        Complex[] transformedArray = transformer.transform(complexArray, TransformType.FORWARD);
+
+        // 计算能量
+        for (int i = 0; i < halfLength; i++) {
+            double real = transformedArray[i].getReal();
+            double imaginary = transformedArray[i].getImaginary();
+            double energyValue = Math.sqrt(real * real + imaginary * imaginary);
+            energy[i] = (int) Math.round(energyValue);
+        }
+
+        return energy;
+    }
+
+    private void recording() {
         short buffer[] = new short[bufferSize];
         while (running && !reactContext.getCatalystInstance().isDestroyed()) {
             audioRecord.read(buffer, 0, bufferSize);
-            if(this.isFFT) {
-                WritableArray data = fd_api.getData(buffer);
-                eventEmitter.emit("recording", data);
-            } else {
-                WritableArray data = td_api.getData(buffer);
+            if(this.fftDataSize > 0) {
+                WritableArray data = this.getFDData(buffer);
                 eventEmitter.emit("recordingFFT", data);
+            } else {
+                WritableArray data = this.getTDData(buffer);
+                eventEmitter.emit("recording", data);
             }
         }
     }
