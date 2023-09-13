@@ -7,7 +7,7 @@ const eventEmitter = new NativeEventEmitter(Recording);
     sampleRate: number,
     bitsPerChannel: 8 | 16,
     channelsPerFrame: 1 | 2,
-    fftBufferSize?: number,
+    fftBufferSize: number,
   }
 
 export default {

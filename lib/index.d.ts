@@ -3,6 +3,7 @@ interface options {
     sampleRate: number;
     bitsPerChannel: 8 | 16;
     channelsPerFrame: 1 | 2;
+    fftBufferSize: number;
 }
 declare const _default: {
     init: (options: options) => any;

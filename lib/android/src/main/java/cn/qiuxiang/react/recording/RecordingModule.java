@@ -21,7 +21,7 @@ class RecordingModule extends ReactContextBaseJavaModule {
     private Thread recordingThread;
 
     private int fftBufferSize;
-    private boolean isFFT;
+    private boolean isFFT = false;
 
 
     RecordingModule(ReactApplicationContext reactContext) {
@@ -85,7 +85,7 @@ class RecordingModule extends ReactContextBaseJavaModule {
 
         if(options.hasKey("fftBufferSize")) {
             this.fftBufferSize = options.getInt("fftBufferSize");
-            this.isFFT = true;
+            this.isFFT = this.fftBufferSize > 0;
         }
 
         audioRecord = new AudioRecord(
@@ -122,22 +122,23 @@ class RecordingModule extends ReactContextBaseJavaModule {
     }
 
     private void recording() {
-        FFTAPI fftAPI = new FFTAPI();
-        fftAPI.setFFTDataSize(this.fftBufferSize);
+        FDAPI fd_api = new FDAPI();
+        TDAPI td_api = new TDAPI();
+
+        if(this.isFFT) {
+            fd_api.setFFTDataSize(this.fftBufferSize);
+        }
+
         short buffer[] = new short[bufferSize];
         while (running && !reactContext.getCatalystInstance().isDestroyed()) {
-            WritableArray data = Arguments.createArray();
-            int[] dataInt = new int[bufferSize];
             audioRecord.read(buffer, 0, bufferSize);
-            for(int i = 0; i < bufferSize; i++) {
-                float value = buffer[i];
-                data.pushInt((int) value);
-                dataInt[i] = (int) value;
+            if(this.isFFT) {
+                WritableArray data = fd_api.getData(buffer);
+                eventEmitter.emit("recording", data);
+            } else {
+                WritableArray data = td_api.getData(buffer);
+                eventEmitter.emit("recordingFFT", data);
             }
-            eventEmitter.emit("recording", data);
-            fftAPI.insertFFTData(dataInt);
-            int[] fftData = fftAPI.getFFTData();
-            eventEmitter.emit("recordingFFT", fftData);
         }
     }
 }
