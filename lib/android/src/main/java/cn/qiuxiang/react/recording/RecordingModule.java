@@ -12,10 +12,6 @@ import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 
-import org.apache.commons.math3.complex.Complex;
-import org.apache.commons.math3.transform.FastFourierTransformer;
-import org.apache.commons.math3.transform.TransformType;
-
 class RecordingModule extends ReactContextBaseJavaModule {
     private static AudioRecord audioRecord;
     private final ReactApplicationContext reactContext;
@@ -167,33 +163,7 @@ class RecordingModule extends ReactContextBaseJavaModule {
             }
             data.pushInt(this.fftData[targetIndex]);
         }
-        return this.calculateEnergy(data);
-    }
-
-    public static int[] calculateEnergy(int[] data) {
-        int length = data.length;
-        int halfLength = length / 2;
-        int[] energy = new int[halfLength];
-
-        // 将 int 数组转换为复数数组
-        Complex[] complexArray = new Complex[length];
-        for (int i = 0; i < length; i++) {
-            complexArray[i] = new Complex(data[i], 0);
-        }
-
-        // 执行 FFT
-        FastFourierTransformer transformer = new FastFourierTransformer();
-        Complex[] transformedArray = transformer.transform(complexArray, TransformType.FORWARD);
-
-        // 计算能量
-        for (int i = 0; i < halfLength; i++) {
-            double real = transformedArray[i].getReal();
-            double imaginary = transformedArray[i].getImaginary();
-            double energyValue = Math.sqrt(real * real + imaginary * imaginary);
-            energy[i] = (int) Math.round(energyValue);
-        }
-
-        return energy;
+        return data;
     }
 
     private void recording() {
